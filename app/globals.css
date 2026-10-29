@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #070b14;
+  color: #e2e8f0;
+  min-height: 100vh;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0c1322;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e2c4d;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #28395f;
+}
+
+/* Glass & Neon Accents */
+.glass-panel {
+  background: rgba(17, 26, 46, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(17, 26, 46, 0.9) 0%, rgba(12, 19, 34, 0.95) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.card-hover-glow {
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover-glow:hover {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 0 22px -4px rgba(16, 185, 129, 0.25);
+  transform: translateY(-2px);
+}
+
+.card-hover-cyan:hover {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 0 22px -4px rgba(6, 182, 212, 0.25);
+  transform: translateY(-2px);
+}
+
+/* Stadium Spotlight Background effect */
+.stadium-mesh {
+  background-image: 
+    radial-gradient(at 20% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+    radial-gradient(at 80% 20%, rgba(6, 182, 212, 0.1) 0px, transparent 50%),
+    radial-gradient(at 50% 90%, rgba(245, 158, 11, 0.06) 0px, transparent 50%);
+}
+
+/* Skeleton animation */
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.skeleton {
+  animation: skeletonPulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background-color: #17233d;
+}
+
+/* Ticket Notch Stubs */
+.ticket-notch-left {
+  position: relative;
+}
+.ticket-notch-left::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: #070b14;
+  border-radius: 50%;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ticket-notch-right::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -12px;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: #070b14;
+  border-radius: 50%;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Credit Card Shiny Glare */
+.credit-card-gradient {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 40%, #020617 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Razorpay branded card */
+.razorpay-gradient {
+  background: linear-gradient(135deg, #0c2340 0%, #081628 100%);
+  border: 1px solid rgba(51, 153, 204, 0.3);
+}
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, footer, button {
+    display: none !important;
+  }
+}
