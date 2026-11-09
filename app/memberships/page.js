@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import Loading from "@/components/Loading";
 import Modal from "@/components/Modal";
+import PaymentModal from "@/components/PaymentModal";
 
 const INITIAL_PLANS = [
   {
@@ -107,8 +108,9 @@ export default function MembershipsPage() {
   const [userMemberships, setUserMemberships] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Apply Modal
+  // Apply & Payment Modal State
   const [applyModalOpen, setApplyModalOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -132,8 +134,20 @@ export default function MembershipsPage() {
     }
   }
 
-  async function handleApplyMembership(e) {
-    e.preventDefault();
+  const studentCat = user?.studentCategory || "Hosteller with EDB";
+  const isEdb = studentCat.includes("EDB");
+  const isHosteller = studentCat.includes("Hosteller");
+
+  function calculateFee(plan) {
+    if (!plan) return 0;
+    if (user?.isComplimentaryApproved) return 0;
+    if (isEdb) return plan.hostellerEdbFee ?? 4500;
+    if (isHosteller) return plan.hostellerRegularFee ?? 5500;
+    return plan.dayScholarFee ?? 7500;
+  }
+
+  function handleStartPayment(e) {
+    if (e) e.preventDefault();
     if (!selectedPlan) return;
 
     if (!user) {
@@ -142,6 +156,27 @@ export default function MembershipsPage() {
       return;
     }
 
+    const fee = calculateFee(selectedPlan);
+    if (fee === 0) {
+      // Complimentary waiver (Medalist)
+      submitMembershipRegistration({
+        method: "Complimentary Pass",
+        paymentId: `medalist_waiver_${Date.now()}`,
+      });
+    } else {
+      // Open Payment Modal so student pays first before pass is activated
+      setApplyModalOpen(false);
+      setPaymentModalOpen(true);
+    }
+  }
+
+  async function handlePaymentSuccess(paymentResult) {
+    setPaymentModalOpen(false);
+    await submitMembershipRegistration(paymentResult);
+  }
+
+  async function submitMembershipRegistration(paymentResult) {
+    if (!selectedPlan) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/memberships", {
@@ -149,14 +184,16 @@ export default function MembershipsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planId: selectedPlan._id,
-          paymentMethod: "UPI",
+          paymentMethod: paymentResult.method || "UPI",
+          paymentStatus: "Paid",
+          paymentDetails: paymentResult,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to submit membership registration.");
       }
-      showToast(data.message || "Membership registered successfully!");
+      showToast(data.message || "Payment verified! Membership activated successfully!");
       setApplyModalOpen(false);
       loadData();
     } catch (err) {
@@ -165,10 +202,6 @@ export default function MembershipsPage() {
       setSubmitting(false);
     }
   }
-
-  const studentCat = user?.studentCategory || "Hosteller with EDB";
-  const isEdb = studentCat.includes("EDB");
-  const isHosteller = studentCat.includes("Hosteller");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
@@ -393,11 +426,15 @@ export default function MembershipsPage() {
               </button>
               <button
                 type="button"
-                onClick={handleApplyMembership}
+                onClick={handleStartPayment}
                 disabled={submitting}
-                className="rounded-lg bg-[#a71d2a] px-5 py-2 text-xs font-bold text-white hover:bg-[#8e1520]"
+                className="rounded-lg bg-[#a71d2a] px-5 py-2 text-xs font-bold text-white hover:bg-[#8e1520] transition cursor-pointer"
               >
-                {submitting ? "Processing..." : "Confirm & Settle Fee (UPI)"}
+                {submitting
+                  ? "Processing..."
+                  : calculateFee(selectedPlan) === 0
+                  ? "Activate Complimentary Pass"
+                  : `Pay ₹${calculateFee(selectedPlan).toLocaleString("en-IN")} via UPI & Activate`}
               </button>
             </div>
           }
@@ -420,25 +457,32 @@ export default function MembershipsPage() {
               <div className="flex justify-between border-t border-red-200 pt-2 font-bold text-sm text-slate-900">
                 <span>Applicable Session Fee:</span>
                 <span className="text-[#a71d2a]">
-                  ₹
-                  {user?.isComplimentaryApproved
-                    ? 0
-                    : isEdb
-                    ? selectedPlan.hostellerEdbFee
-                    : isHosteller
-                    ? selectedPlan.hostellerRegularFee
-                    : selectedPlan.dayScholarFee}
+                  ₹{calculateFee(selectedPlan).toLocaleString("en-IN")}
                 </span>
               </div>
             </div>
 
             <div className="text-[11px] text-slate-500 space-y-1">
               <div>• Session pass valid through 31 May 2027.</div>
-              <div>• Instant digital pass generated with QR verification token.</div>
-              <div>• Settle via direct UPI to 7828722557@ptyes or pay at counter.</div>
+              <div>• Instant digital pass generated with QR verification token upon payment.</div>
+              <div>• Real UPI payments go directly to university sports merchant ID (<strong>7828722557@ptyes</strong>).</div>
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Real Payment Modal for Memberships (Must pay first before activation) */}
+      {selectedPlan && (
+        <PaymentModal
+          open={paymentModalOpen}
+          onClose={() => setPaymentModalOpen(false)}
+          title={`Pay & Activate ${selectedPlan.sportCategory} Membership`}
+          itemTitle={`LPU ${selectedPlan.sportCategory} Session Pass`}
+          itemSubtitle={`${studentCat} • Academic Year 2026–27`}
+          amount={calculateFee(selectedPlan)}
+          allowPayAtVenue={false}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
       )}
     </div>
   );

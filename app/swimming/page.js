@@ -21,6 +21,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import Loading from "@/components/Loading";
+import PaymentModal from "@/components/PaymentModal";
 
 const INITIAL_SWIM_SLOTS = [
   { _id: "init_swim_0", startTime: "06:00", endTime: "06:50", category: "General", bookedCount: 8, poolName: "Shanti Devi Mittal Olympic Swimming Complex", maxCapacity: 30 },
@@ -52,6 +53,10 @@ export default function SwimmingPage() {
   const [bookingLoading, setBookingLoading] = useState(null); // slotId
   const [lastBooking, setLastBooking] = useState(null);
 
+  // Payment Modal State
+  const [selectedSlotForPayment, setSelectedSlotForPayment] = useState(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+
   useEffect(() => {
     fetchSlots();
   }, [date, categoryFilter]);
@@ -72,13 +77,41 @@ export default function SwimmingPage() {
     }
   }
 
-  async function handleBookSlot(slot) {
+  function calculateSlotPrice() {
+    const studentCategory = user?.studentCategory || "Hosteller with EDB";
+    const isHosteller = studentCategory.toLowerCase().includes("hosteller");
+    const isFree = Boolean(user?.isComplimentaryApproved);
+    return isFree ? 0 : isHosteller ? 50 : 100;
+  }
+
+  function handleBookSlot(slot) {
     if (!user) {
       showToast("Please log in with your LPU student account to book swimming sessions.", "error");
       window.location.href = "/login";
       return;
     }
 
+    const price = calculateSlotPrice();
+    if (price === 0) {
+      // Complimentary medalist pass or active membership pass
+      submitSwimmingBooking(slot, {
+        method: "Active Swimming Pass",
+        paymentId: `pass_waiver_${Date.now()}`,
+      });
+    } else {
+      // Open Payment Modal so student pays first before pass is activated
+      setSelectedSlotForPayment(slot);
+      setPaymentModalOpen(true);
+    }
+  }
+
+  async function handlePaymentSuccess(paymentResult) {
+    setPaymentModalOpen(false);
+    if (!selectedSlotForPayment) return;
+    await submitSwimmingBooking(selectedSlotForPayment, paymentResult);
+  }
+
+  async function submitSwimmingBooking(slot, paymentResult) {
     setBookingLoading(slot._id);
     try {
       const res = await fetch("/api/swimming/book", {
@@ -86,14 +119,16 @@ export default function SwimmingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slotId: slot._id,
-          paymentMethod: "UPI",
+          paymentMethod: paymentResult.method || "UPI",
+          paymentStatus: "Paid",
+          paymentDetails: paymentResult,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to book swimming slot.");
       }
-      showToast(data.message || "Swimming slot reserved successfully!");
+      showToast(data.message || "Payment verified! Swimming slot reserved successfully.");
       setLastBooking(data.booking);
       fetchSlots();
     } catch (err) {
@@ -286,7 +321,7 @@ export default function SwimmingPage() {
                     <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-slate-100">
                       <span className="text-slate-500">Session Fee:</span>
                       <span className="font-extrabold text-[#a71d2a]">
-                        ₹{slot.price || (user?.hasEdbBenefit ? 0 : 50)}
+                        {calculateSlotPrice() === 0 ? "Complimentary Pass" : `₹${calculateSlotPrice()}`}
                       </span>
                     </div>
                   </div>
@@ -308,7 +343,11 @@ export default function SwimmingPage() {
                     ) : (
                       <>
                         <QrCode size={14} />
-                        <span>Reserve 50-Min Pass</span>
+                        <span>
+                          {calculateSlotPrice() === 0
+                            ? "Reserve with Pass"
+                            : `Pay ₹${calculateSlotPrice()} via UPI & Book`}
+                        </span>
                       </>
                     )}
                   </button>
@@ -332,6 +371,20 @@ export default function SwimmingPage() {
           <div>• Hostellers with valid EDB benefits receive complimentary standard access.</div>
         </div>
       </div>
+
+      {/* Real Payment Modal for Swimming Slot (Must pay first before activation) */}
+      {selectedSlotForPayment && (
+        <PaymentModal
+          open={paymentModalOpen}
+          onClose={() => setPaymentModalOpen(false)}
+          title="Pay & Reserve Olympic Swimming Pool Pass"
+          itemTitle={`Olympic 50m Pool Session (${selectedSlotForPayment.startTime}–${selectedSlotForPayment.endTime})`}
+          itemSubtitle={`Date: ${selectedSlotForPayment.date} • ${selectedSlotForPayment.category} Window`}
+          amount={calculateSlotPrice()}
+          allowPayAtVenue={false}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 }

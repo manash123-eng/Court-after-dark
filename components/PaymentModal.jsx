@@ -29,6 +29,7 @@ export default function PaymentModal({
   itemSubtitle,
   amount = 450,
   taxAmount = 0,
+  allowPayAtVenue = true,
   onPaymentSuccess,
 }) {
   // Tabs: 'upi' | 'card' | 'razorpay' | 'venue'
@@ -421,7 +422,7 @@ export default function PaymentModal({
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
               Select Payment Method
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className={`grid gap-2 ${allowPayAtVenue ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-3"}`}>
               <button
                 type="button"
                 onClick={() => setActiveTab("upi")}
@@ -458,17 +459,19 @@ export default function PaymentModal({
                 <span>Razorpay Gateway</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab("venue")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${activeTab === "venue"
-                    ? "bg-amber-500/15 border-amber-400 text-amber-300 shadow-glow-amber"
-                    : "bg-dark-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-                  }`}
-              >
-                <Building2 size={18} className="mb-1 text-amber-400" />
-                <span>Pay at Venue</span>
-              </button>
+              {allowPayAtVenue && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("venue")}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${activeTab === "venue"
+                      ? "bg-amber-500/15 border-amber-400 text-amber-300 shadow-glow-amber"
+                      : "bg-dark-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                    }`}
+                >
+                  <Building2 size={18} className="mb-1 text-amber-400" />
+                  <span>Pay at Venue</span>
+                </button>
+              )}
             </div>
           </div>
         )}

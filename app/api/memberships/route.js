@@ -99,9 +99,19 @@ export async function POST(request) {
     applicableFee = 0;
   }
 
+  const { paymentDetails = {}, paymentStatus = "Paid" } = body;
+
+  // Validation: Must pay money before membership pass can be activated
+  if (applicableFee > 0 && paymentStatus !== "Paid" && !paymentDetails?.utrNumber && !paymentDetails?.paymentId) {
+    return NextResponse.json(
+      { error: "Payment required: Please complete fee settlement via UPI/Card before membership pass activation." },
+      { status: 402 }
+    );
+  }
+
   const startDate = new Date();
   const endDate = new Date("2027-05-31T23:59:59.000Z");
-  const paymentRef = `LPU-MEM-${Date.now().toString(36).toUpperCase()}`;
+  const paymentRef = paymentDetails?.utrNumber || paymentDetails?.refId || `LPU-MEM-${Date.now().toString(36).toUpperCase()}`;
 
   // 3. Persist to MongoDB (or In-Memory Fallback)
   try {

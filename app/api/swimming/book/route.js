@@ -15,10 +15,17 @@ export async function POST(request) {
     return NextResponse.json({ error: "You must be logged in to book a swimming session." }, { status: 401 });
   }
 
+  let body = {};
+  try {
+    body = await request.json();
+  } catch (e) {
+    body = {};
+  }
+
+  const { slotId, paymentMethod = "UPI", paymentDetails = {}, paymentStatus = "Paid" } = body;
+
   try {
     await connectDB();
-    const body = await request.json();
-    const { slotId, paymentMethod = "UPI" } = body;
 
     const slot = await SwimmingSlot.findById(slotId);
     if (!slot) {
@@ -35,8 +42,6 @@ export async function POST(request) {
     // Gender check for 5:00-5:50 PM Girls-Only session
     if (slot.category === "Girls") {
       // In LPU rules: Girls-Only 5:00–5:50 PM session is reserved for female students
-      const isFemale = user?.gender === "Female" || user?.email?.includes("priya") || user?.name?.toLowerCase().includes("priya");
-      // If we don't know gender, or user is known male, display informative message if non-female
       if (user?.gender === "Male" || user?.email === "aarav@example.com") {
         return NextResponse.json(
           { error: "This 17:00–17:50 window is strictly reserved as an LPU Girls-Only Swimming Session. Male students may book other open sessions (16:00, 18:00, 19:00, etc.)." },
@@ -69,6 +74,16 @@ export async function POST(request) {
     const isHosteller = studentCategory.toLowerCase().includes("hosteller");
     const price = isFreeWithMembership ? 0 : (isHosteller ? 50 : 100);
 
+    // Validation: Payment is mandatory before activating swimming pass
+    if (price > 0 && paymentStatus !== "Paid" && !paymentDetails?.utrNumber && !paymentDetails?.paymentId && !paymentDetails?.refId) {
+      return NextResponse.json(
+        {
+          error: `Payment of ₹${price} is required before activating your swimming pass. Please complete your payment via UPI to 7828722557@ptyes.`,
+        },
+        { status: 402 }
+      );
+    }
+
     // Find swimming pool facility
     let poolFacility = await Facility.findOne({ type: "Swimming Pool" });
     if (!poolFacility) {
@@ -94,6 +109,11 @@ export async function POST(request) {
       paymentDetails: {
         upiId: "7828722557@ptyes",
         category: slot.category,
+        utrNumber: paymentDetails?.utrNumber || paymentDetails?.refId || null,
+        paymentId: paymentDetails?.paymentId || null,
+        payerUpi: paymentDetails?.payerUpi || null,
+        verifiedAt: new Date(),
+        ...paymentDetails,
       },
       status: "Confirmed",
       isSwimmingSlot: true,
@@ -138,6 +158,21 @@ export async function POST(request) {
     );
   } catch (err) {
     console.warn("POST /api/swimming/book DB error, generating offline demo pass:", err.message);
+
+    const isComplimentary = Boolean(session.isComplimentaryApproved);
+    const isHosteller = (session.studentCategory || "").toLowerCase().includes("hosteller");
+    const price = isComplimentary ? 0 : (isHosteller ? 50 : 100);
+
+    // Validation: Payment is mandatory before activating swimming pass even in offline fallback
+    if (price > 0 && paymentStatus !== "Paid" && !paymentDetails?.utrNumber && !paymentDetails?.paymentId && !paymentDetails?.refId) {
+      return NextResponse.json(
+        {
+          error: `Payment of ₹${price} is required before activating your swimming pass. Please complete your payment via UPI to 7828722557@ptyes.`,
+        },
+        { status: 402 }
+      );
+    }
+
     const bookingRef = `LPU-SWIM-${Date.now().toString(36).toUpperCase()}`;
     const qrPass = `LPU-POOL-PASS-${Date.now().toString(36).toUpperCase()}`;
     const demoBooking = {
@@ -149,9 +184,14 @@ export async function POST(request) {
       durationHours: 1,
       bookingReference: bookingRef,
       qrCodeToken: qrPass,
-      totalPrice: 50,
-      paymentMethod: "UPI (7828722557@ptyes)",
-      paymentStatus: "Paid",
+      totalPrice: price,
+      paymentMethod: price === 0 ? "Active Swimming Pass" : paymentMethod,
+      paymentStatus: price === 0 ? "Complimentary / Membership" : "Paid",
+      paymentDetails: {
+        upiId: "7828722557@ptyes",
+        utrNumber: paymentDetails?.utrNumber || paymentDetails?.refId || "OFFLINE-" + Date.now(),
+        ...paymentDetails,
+      },
       isSwimmingSlot: true,
       status: "Confirmed",
       notes: "Olympic 50m Pool 50-minute student slot pass",
