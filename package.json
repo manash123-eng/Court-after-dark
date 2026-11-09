@@ -13,8 +13,9 @@
     "test:payments": "node scripts/test-payments.js",
     "test:otp": "node scripts/test-otp.js",
     "test:auth": "node scripts/test-direct-auth.js",
+    "test:memberships": "node scripts/test-memberships-offline.js",
     "test:lpu": "node scripts/test-lpu-platform.js",
-    "test": "node scripts/test-rules.js && node scripts/test-validators.js && node scripts/test-payments.js && node scripts/test-direct-auth.js && node scripts/test-lpu-platform.js"
+    "test": "node scripts/test-rules.js && node scripts/test-validators.js && node scripts/test-payments.js && node scripts/test-direct-auth.js && node scripts/test-memberships-offline.js && node scripts/test-lpu-platform.js"
   },
   "dependencies": {
     "next": "14.2.35",

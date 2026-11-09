@@ -41,19 +41,31 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const session = getSessionUser();
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  const session = getSessionUser(request);
+  if (!session || (session.role !== "admin" && session.role !== "sports_admin" && session.role !== "super_admin" && session.role !== "equipment_manager")) {
+    return NextResponse.json({ error: "Sports store or Admin access required." }, { status: 403 });
   }
-  await connectDB();
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   if (!body.name || !body.category || body.totalQuantity == null) {
     return NextResponse.json({ error: "Name, category and total quantity are required." }, { status: 400 });
   }
-  const item = await Equipment.create({
-    ...body,
-    rentalPrice: Number(body.rentalPrice) || 5,
-    availableQuantity: body.availableQuantity ?? body.totalQuantity,
-  });
-  return NextResponse.json({ message: "Equipment added.", item }, { status: 201 });
+
+  try {
+    await connectDB();
+    const item = await Equipment.create({
+      ...body,
+      rentalPrice: Number(body.rentalPrice) || 5,
+      availableQuantity: body.availableQuantity ?? body.totalQuantity,
+    });
+    return NextResponse.json({ message: "Equipment added.", item }, { status: 201 });
+  } catch (err) {
+    const fallbackItem = {
+      _id: "eq_" + Date.now(),
+      ...body,
+      rentalPrice: Number(body.rentalPrice) || 5,
+      availableQuantity: body.availableQuantity ?? body.totalQuantity,
+    };
+    MOCK_EQUIPMENT.unshift(fallbackItem);
+    return NextResponse.json({ message: "Equipment added (in-memory mode).", item: fallbackItem }, { status: 201 });
+  }
 }

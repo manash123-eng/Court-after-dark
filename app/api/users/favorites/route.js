@@ -3,56 +3,92 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Facility from "@/models/Facility";
 import { getSessionUser } from "@/lib/auth";
+import { MOCK_FACILITIES } from "@/lib/mockData";
+
+let inMemoryFavorites = global._inMemoryFavorites;
+if (!inMemoryFavorites) {
+  inMemoryFavorites = global._inMemoryFavorites = {};
+}
 
 // GET /api/users/favorites -> return current user's favorites
-export async function GET() {
-  const session = getSessionUser();
+export async function GET(request) {
+  const session = getSessionUser(request);
   if (!session) {
     return NextResponse.json({ error: "You must be logged in." }, { status: 401 });
   }
-  await connectDB();
 
-  const user = await User.findById(session.id).populate("favorites");
-  if (!user) {
-    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  try {
+    await connectDB();
+    const user = await User.findById(session.id).populate("favorites");
+    if (user) {
+      return NextResponse.json({ favorites: user.favorites || [] });
+    }
+  } catch (err) {
+    // offline fallback
   }
 
-  return NextResponse.json({ favorites: user.favorites || [] });
+  const userFavIds = inMemoryFavorites[session.id] || [];
+  const favFacilities = MOCK_FACILITIES.filter((f) => userFavIds.includes(f._id));
+  return NextResponse.json({ favorites: favFacilities });
 }
 
 // POST /api/users/favorites -> toggle favorite facility
 export async function POST(request) {
-  const session = getSessionUser();
+  const session = getSessionUser(request);
   if (!session) {
     return NextResponse.json({ error: "You must be logged in." }, { status: 401 });
   }
-  await connectDB();
 
-  const { facilityId } = await request.json();
+  const { facilityId } = await request.json().catch(() => ({}));
   if (!facilityId) {
     return NextResponse.json({ error: "facilityId is required." }, { status: 400 });
   }
 
-  const user = await User.findById(session.id);
-  if (!user) {
-    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  try {
+    await connectDB();
+    const user = await User.findById(session.id);
+    if (user) {
+      const favIndex = user.favorites.findIndex((id) => id.toString() === facilityId);
+      let isFavorite = false;
+
+      if (favIndex >= 0) {
+        user.favorites.splice(favIndex, 1);
+        isFavorite = false;
+      } else {
+        user.favorites.push(facilityId);
+        isFavorite = true;
+      }
+
+      await user.save();
+      return NextResponse.json({
+        message: isFavorite ? "Added to favorites" : "Removed from favorites",
+        isFavorite,
+        favorites: user.favorites,
+      });
+    }
+  } catch (err) {
+    // offline fallback
   }
 
-  const favIndex = user.favorites.findIndex((id) => id.toString() === facilityId);
-  let isFavorite = false;
+  if (!inMemoryFavorites[session.id]) {
+    inMemoryFavorites[session.id] = [];
+  }
 
-  if (favIndex >= 0) {
-    user.favorites.splice(favIndex, 1);
-    isFavorite = false;
+  const userFavs = inMemoryFavorites[session.id];
+  const idx = userFavs.indexOf(facilityId);
+  let isFav = false;
+
+  if (idx >= 0) {
+    userFavs.splice(idx, 1);
+    isFav = false;
   } else {
-    user.favorites.push(facilityId);
-    isFavorite = true;
+    userFavs.push(facilityId);
+    isFav = true;
   }
 
-  await user.save();
   return NextResponse.json({
-    message: isFavorite ? "Added to favorites" : "Removed from favorites",
-    isFavorite,
-    favorites: user.favorites,
+    message: isFav ? "Added to favorites" : "Removed from favorites",
+    isFavorite: isFav,
+    favorites: userFavs,
   });
 }

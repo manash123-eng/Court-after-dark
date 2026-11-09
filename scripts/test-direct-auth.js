@@ -88,3 +88,4 @@ assert.equal(pwdCheck.passed, true);
 console.log("   ✓ Registration field validators passed.");
 
 console.log("\n🎉 Direct Authentication (No OTP) Suite passed 100% cleanly!");
+

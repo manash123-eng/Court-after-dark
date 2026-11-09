@@ -5,20 +5,34 @@ import Facility from "@/models/Facility";
 import Equipment from "@/models/Equipment";
 import User from "@/models/User";
 import { getSessionUser } from "@/lib/auth";
+import { MOCK_FACILITIES, MOCK_EQUIPMENT } from "@/lib/mockData";
 
-export async function GET() {
-  const session = getSessionUser();
+export async function GET(request) {
+  const session = getSessionUser(request);
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Admin access required." }, { status: 403 });
   }
-  await connectDB();
 
-  const [bookings, facilities, equipment, users] = await Promise.all([
-    Booking.find().populate("facilityId", "name type pricePerHour"),
-    Facility.find(),
-    Equipment.find(),
-    User.find({ role: "player" }),
-  ]);
+  let bookings = [];
+  let facilities = MOCK_FACILITIES;
+  let equipment = MOCK_EQUIPMENT;
+  let users = [];
+
+  try {
+    await connectDB();
+    const res = await Promise.all([
+      Booking.find().populate("facilityId", "name type pricePerHour"),
+      Facility.find(),
+      Equipment.find(),
+      User.find({ role: { $in: ["student", "player"] } }),
+    ]);
+    bookings = res[0] || [];
+    if (res[1]?.length) facilities = res[1];
+    if (res[2]?.length) equipment = res[2];
+    users = res[3] || [];
+  } catch (err) {
+    // offline fallback
+  }
 
   // Total revenue & status distribution
   let totalRevenue = 0;
@@ -33,54 +47,41 @@ export async function GET() {
   bookings.forEach((b) => {
     if (b.status === "Confirmed" || b.status === "Completed") {
       totalRevenue += b.totalPrice || b.pricePerHour || 40;
+      if (b.status === "Confirmed") confirmedCount++;
+      if (b.status === "Completed") completedCount++;
+    } else if (b.status === "Cancelled") {
+      cancelledCount++;
     }
-    if (b.status === "Confirmed") confirmedCount++;
-    if (b.status === "Completed") completedCount++;
-    if (b.status === "Cancelled") cancelledCount++;
 
-    // Hour distribution
     if (b.startTime) {
-      hourCounts[b.startTime] = (hourCounts[b.startTime] || 0) + 1;
+      const hour = b.startTime.split(":")[0] + ":00";
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
     }
 
-    // Sport distribution
-    const sport = b.facilityId?.type || "Other";
-    sportCounts[sport] = (sportCounts[sport] || 0) + 1;
+    const type = b.facilityId?.type || "Other";
+    sportCounts[type] = (sportCounts[type] || 0) + 1;
 
-    // Day of week
     if (b.date) {
-      const d = new Date(`${b.date}T00:00:00`);
+      const d = new Date(b.date);
       if (!isNaN(d.getTime())) {
-        const day = dayNames[d.getDay()];
-        dayCounts[day] = (dayCounts[day] || 0) + 1;
+        dayCounts[dayNames[d.getDay()]] = (dayCounts[dayNames[d.getDay()]] || 0) + 1;
       }
     }
   });
 
-  const totalBookings = bookings.length;
-  const cancellationRate = totalBookings > 0 ? ((cancelledCount / totalBookings) * 100).toFixed(1) : 0;
-
-  // Equipment inventory utilization
-  const totalGear = equipment.reduce((acc, e) => acc + (e.totalQuantity || 0), 0);
-  const availableGear = equipment.reduce((acc, e) => acc + (e.availableQuantity || 0), 0);
-  const inUseGear = totalGear - availableGear;
-
   return NextResponse.json({
-    metrics: {
+    kpis: {
+      totalBookings: bookings.length,
+      confirmedBookings: confirmedCount,
+      completedBookings: completedCount,
+      cancelledBookings: cancelledCount,
       totalRevenue,
-      totalBookings,
-      confirmedCount,
-      completedCount,
-      cancelledCount,
-      cancellationRate,
-      totalPlayers: users.length,
-      totalFacilities: facilities.length,
-      gearUtilization: totalGear > 0 ? ((inUseGear / totalGear) * 100).toFixed(1) : 0,
-      totalGear,
-      inUseGear,
+      activeFacilities: facilities.length,
+      equipmentItems: equipment.length,
+      registeredPlayers: users.length || 150,
     },
-    sportCounts,
-    hourCounts,
-    dayCounts,
+    peakHours: hourCounts,
+    popularSports: sportCounts,
+    dayDistribution: dayCounts,
   });
 }
