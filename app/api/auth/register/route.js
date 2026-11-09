@@ -1,28 +1,34 @@
 // app/api/auth/register/route.js
-// Secure user registration endpoint with real carrier SMS OTP verification.
-// Does NOT activate the account or issue JWT until OTP is verified.
+// Direct student registration endpoint with immediate session creation (No OTP required).
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-import {
-  normalizeIndianPhone,
-  savePendingRegistration,
-  sendRealSmsOtp,
-} from "@/lib/otpService";
+import { signToken, AUTH_COOKIE_NAME } from "@/lib/auth";
+import { findInMemoryUser, createInMemoryUser } from "@/lib/inMemoryUsers";
+import { normalizeIndianPhone } from "@/lib/otpService";
 import { isValidEmail, isValidName, evaluatePasswordStrength } from "@/lib/validators";
-import { checkRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, email, phone, password } = body;
+    const {
+      name,
+      email,
+      phone,
+      password,
+      studentCategory = "Hosteller with EDB",
+      regNo = "",
+      department = "",
+      hostelBlock = "",
+      gender = "Other",
+    } = body;
 
-    // 1. Validate fields
-    if (!name || !email || !phone || !password) {
+    // 1. Validation
+    if (!name || !email || !password) {
       return NextResponse.json(
-        { error: "Full name, email address, mobile phone number, and password are required." },
+        { error: "Full student name, university email, and password are required." },
         { status: 400 }
       );
     }
@@ -41,9 +47,12 @@ export async function POST(request) {
       );
     }
 
-    const norm = normalizeIndianPhone(phone);
-    if (!norm.valid) {
-      return NextResponse.json({ error: norm.error }, { status: 400 });
+    let formattedPhone = phone || "";
+    if (phone) {
+      const norm = normalizeIndianPhone(phone);
+      if (norm.valid) {
+        formattedPhone = norm.e164;
+      }
     }
 
     const strength = evaluatePasswordStrength(password);
@@ -54,78 +63,106 @@ export async function POST(request) {
       );
     }
 
-    // 2. Rate limiting by phone number (max 4 attempts per minute)
-    const rateCheck = checkRateLimit(`reg:${norm.e164}`, 4, 60000);
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: "Too many registration attempts. Please wait 1 minute before trying again." },
-        { status: 429 }
-      );
-    }
-
-    // 3. Check for existing active account
+    // 2. Check for duplicate account
+    let isDuplicate = false;
     try {
       await connectDB();
-      const existingUser = await User.findOne({
+      const existing = await User.findOne({
         $or: [
           { email: email.toLowerCase() },
-          { phone: norm.e164 },
-          { phone: norm.rawDigits },
-          { phone: norm.formatted },
+          ...(formattedPhone ? [{ phone: formattedPhone }] : []),
         ],
       });
-
-      if (existingUser && existingUser.status === "active") {
-        return NextResponse.json(
-          { error: "An active account with this email or mobile number already exists. Please sign in." },
-          { status: 409 }
-        );
+      if (existing) {
+        isDuplicate = true;
       }
     } catch (dbErr) {
-      console.warn("[Register DB Warning]", dbErr.message);
+      // Check in-memory users if DB is offline
+      if (findInMemoryUser(email) || (formattedPhone && findInMemoryUser(formattedPhone))) {
+        isDuplicate = true;
+      }
     }
 
-    // 4. Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 5. Store unactivated pending registration session
-    const pendingSessionId = savePendingRegistration({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phone: norm.e164,
-      rawDigits: norm.rawDigits,
-      password: hashedPassword,
-    });
-
-    // 6. Send real SMS OTP to the physical phone
-    const sendResult = await sendRealSmsOtp(norm.e164);
-
-    if (!sendResult.success) {
+    if (isDuplicate) {
       return NextResponse.json(
-        {
-          error: sendResult.error,
-          configured: sendResult.configured !== false,
-          requiresConfiguration: !!sendResult.requiresConfiguration,
-        },
-        { status: sendResult.requiresConfiguration ? 503 : 400 }
+        { error: "An account with this email or mobile number already exists. Please sign in." },
+        { status: 409 }
       );
     }
 
-    // 7. Return success without exposing OTP
-    return NextResponse.json(
+    // 3. Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 4. Create User directly (Active status, No OTP required)
+    let user = null;
+    try {
+      await connectDB();
+      user = await User.create({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: formattedPhone,
+        phoneVerified: true,
+        password: hashedPassword,
+        role: "student",
+        status: "active",
+        studentCategory,
+        regNo,
+        department,
+        hostelBlock,
+        gender,
+      });
+    } catch (createErr) {
+      console.warn("[Register] DB write unavailable, persisting to in-memory store:", createErr.message);
+      user = createInMemoryUser({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: formattedPhone,
+        password: hashedPassword,
+        role: "student",
+        studentCategory,
+        regNo,
+        department,
+        hostelBlock,
+        gender,
+      });
+    }
+
+    const userId = (user._id || user.id).toString();
+    const token = signToken({
+      id: userId,
+      role: user.role,
+      name: user.name,
+      studentCategory: user.studentCategory,
+    });
+
+    const response = NextResponse.json(
       {
         success: true,
-        pendingSessionId,
-        maskedPhone: norm.masked,
-        phone: norm.e164,
-        message: `Verification code sent via SMS to ${norm.masked}.`,
+        message: "Account created successfully! Welcome to LPU Sports Portal.",
+        user: {
+          id: userId,
+          _id: userId,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          studentCategory: user.studentCategory,
+        },
       },
-      { status: 200 }
+      { status: 201 }
     );
+
+    response.cookies.set(AUTH_COOKIE_NAME, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+
+    return response;
   } catch (err) {
     console.error("[Register Controller Error]", err);
     return NextResponse.json(
-      { error: err.message || "Failed to process registration. Please try again." },
+      { error: err.message || "Failed to complete registration." },
       { status: 500 }
     );
   }

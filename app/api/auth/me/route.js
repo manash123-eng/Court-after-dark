@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-import Facility from "@/models/Facility";
 import { getSessionUser } from "@/lib/auth";
+import { getInMemoryUserById } from "@/lib/inMemoryUsers";
 
 export const dynamic = "force-dynamic";
 
@@ -23,16 +23,36 @@ export async function GET(request) {
         return NextResponse.json({ user });
       }
     } catch {
-      // DB offline, fallback to session info
+      // DB offline, fallback to in-memory user or session info
+    }
+
+    const inMem = getInMemoryUserById(session.id);
+    if (inMem) {
+      return NextResponse.json({
+        user: {
+          _id: inMem._id,
+          id: inMem.id,
+          name: inMem.name,
+          email: inMem.email,
+          phone: inMem.phone,
+          role: inMem.role,
+          studentCategory: inMem.studentCategory,
+          regNo: inMem.regNo,
+          department: inMem.department,
+          hostelBlock: inMem.hostelBlock,
+          favorites: [],
+        },
+      });
     }
 
     return NextResponse.json({
       user: {
         _id: session.id,
         id: session.id,
-        name: session.name || (session.role === "admin" ? "Admin User" : "Aarav Sharma"),
+        name: session.name || "Aarav Sharma",
         email: session.role === "admin" ? "admin@courtsafterdark.com" : "aarav@example.com",
-        role: session.role || "player",
+        role: session.role || "student",
+        studentCategory: session.studentCategory || "Hosteller with EDB",
         favorites: [],
       },
     });

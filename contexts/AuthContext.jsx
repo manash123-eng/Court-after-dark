@@ -26,11 +26,11 @@ export function AuthProvider({ children }) {
     refreshUser();
   }, []);
 
-  async function login(email, password) {
+  async function login(identifier, password) {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  async function loginDemo(role = "player") {
+  async function loginDemo(role = "student") {
     const res = await fetch("/api/auth/demo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -54,45 +54,15 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  async function register({ name, email, phone, password }) {
+  async function register(userData) {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, phone, password }),
+      body: JSON.stringify(userData),
     });
     const data = await res.json();
     if (!res.ok) {
       const err = new Error(data.error || "Registration failed");
-      err.data = data;
-      throw err;
-    }
-    return data;
-  }
-
-  async function sendOtp(phone, purpose = "login") {
-    const res = await fetch("/api/auth/otp/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, purpose }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const err = new Error(data.error || "Failed to send verification SMS.");
-      err.data = data;
-      throw err;
-    }
-    return data;
-  }
-
-  async function verifyOtp({ phone, otp, pendingSessionId }) {
-    const res = await fetch("/api/auth/otp/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, otp, pendingSessionId }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const err = new Error(data.error || "Failed to verify OTP.");
       err.data = data;
       throw err;
     }
@@ -120,8 +90,6 @@ export function AuthProvider({ children }) {
         login,
         loginDemo,
         register,
-        sendOtp,
-        verifyOtp,
         logout,
       }}
     >

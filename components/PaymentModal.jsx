@@ -298,8 +298,8 @@ export default function PaymentModal({
       razorpaySubTab === "upi"
         ? `Requesting UPI mandate from ${customUpiId || "UPI network"}...`
         : razorpaySubTab === "qr"
-        ? "Verifying dynamic UPI QR scan payment..."
-        : `Connecting to ${selectedBank} secure gateway...`
+          ? "Verifying dynamic UPI QR scan payment..."
+          : `Connecting to ${selectedBank} secure gateway...`
     );
     await new Promise((r) => setTimeout(r, 800));
 
@@ -425,11 +425,10 @@ export default function PaymentModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("upi")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${
-                  activeTab === "upi"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${activeTab === "upi"
                     ? "bg-emerald-500/15 border-emerald-400 text-emerald-300 shadow-glow-sm"
                     : "bg-dark-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-                }`}
+                  }`}
               >
                 <Smartphone size={18} className="mb-1 text-emerald-400" />
                 <span>UPI (GPay/Paytm)</span>
@@ -438,11 +437,10 @@ export default function PaymentModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("card")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${
-                  activeTab === "card"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${activeTab === "card"
                     ? "bg-primary-400/15 border-primary-400 text-primary-300 shadow-glow-sm"
                     : "bg-dark-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-                }`}
+                  }`}
               >
                 <CreditCard size={18} className="mb-1 text-primary-400" />
                 <span>Card (RuPay/Visa)</span>
@@ -451,11 +449,10 @@ export default function PaymentModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("razorpay")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${
-                  activeTab === "razorpay"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${activeTab === "razorpay"
                     ? "bg-cyan-500/15 border-cyan-400 text-cyan-300 shadow-glow-cyan"
                     : "bg-dark-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-                }`}
+                  }`}
               >
                 <ExternalLink size={18} className="mb-1 text-cyan-400" />
                 <span>Razorpay Gateway</span>
@@ -464,11 +461,10 @@ export default function PaymentModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("venue")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${
-                  activeTab === "venue"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-bold transition ${activeTab === "venue"
                     ? "bg-amber-500/15 border-amber-400 text-amber-300 shadow-glow-amber"
                     : "bg-dark-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-                }`}
+                  }`}
               >
                 <Building2 size={18} className="mb-1 text-amber-400" />
                 <span>Pay at Venue</span>
@@ -816,11 +812,10 @@ export default function PaymentModal({
                     key={m.id}
                     type="button"
                     onClick={() => setRazorpaySubTab(m.id)}
-                    className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 font-semibold transition border-b-2 ${
-                      razorpaySubTab === m.id
+                    className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 font-semibold transition border-b-2 ${razorpaySubTab === m.id
                         ? "border-cyan-400 text-cyan-400"
                         : "border-transparent text-slate-400 hover:text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={14} />
                     <span>{m.label}</span>
@@ -898,11 +893,10 @@ export default function PaymentModal({
                       key={b}
                       type="button"
                       onClick={() => setSelectedBank(b)}
-                      className={`p-2 rounded-xl border text-xs font-semibold truncate transition ${
-                        selectedBank === b
+                      className={`p-2 rounded-xl border text-xs font-semibold truncate transition ${selectedBank === b
                           ? "bg-cyan-500/15 border-cyan-400 text-cyan-300"
                           : "border-slate-800 bg-dark-900 text-slate-300 hover:border-slate-700"
-                      }`}
+                        }`}
                     >
                       {b}
                     </button>
