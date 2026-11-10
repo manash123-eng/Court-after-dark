@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 
 const EquipmentSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  sportCategory: { type: String, required: true }, // e.g. "Badminton", "Football", "Cricket"
+  sportCategory: { type: String }, // e.g. "Badminton", "Football", "Cricket"
+  category: { type: String }, // synonym for frontend and API compatibility
   description: { type: String, default: "" },
   image: { type: String, default: "" },
 
@@ -23,6 +24,7 @@ const EquipmentSchema = new mongoose.Schema({
     default: "All Students",
   },
   rentalFee: { type: Number, default: 0 }, // 0 = Free with student ID unless configured
+  rentalPrice: { type: Number, default: 0 }, // synonym for frontend compatibility
   securityDeposit: { type: Number, default: 0 },
   storeLocation: {
     type: String,
@@ -45,6 +47,14 @@ const EquipmentSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
-EquipmentSchema.index({ sportCategory: 1, status: 1 });
+EquipmentSchema.pre("save", function (next) {
+  if (this.sportCategory && !this.category) this.category = this.sportCategory;
+  if (this.category && !this.sportCategory) this.sportCategory = this.category;
+  if (this.rentalFee != null && this.rentalPrice == null) this.rentalPrice = this.rentalFee;
+  if (this.rentalPrice != null && this.rentalFee == null) this.rentalFee = this.rentalPrice;
+  next();
+});
+
+EquipmentSchema.index({ sportCategory: 1, category: 1, status: 1 });
 
 export default mongoose.models.Equipment || mongoose.model("Equipment", EquipmentSchema);

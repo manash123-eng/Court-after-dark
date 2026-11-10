@@ -11,28 +11,54 @@ export async function GET(request) {
 
   try {
     await connectDB();
+
+    const totalInDb = await Equipment.countDocuments({});
+    if (totalInDb === 0) {
+      console.warn("[Equipment API] Equipment collection has 0 documents in database. Serving mock catalogue fallback.");
+      throw new Error("Empty equipment collection");
+    }
+
     const query = {};
-    if (category && category !== "All") query.category = category;
+    if (category && category !== "All") {
+      query.$or = [{ category }, { sportCategory: category }];
+    }
     if (search) {
+      const searchRegex = { $regex: search, $options: "i" };
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+        { name: searchRegex },
+        { category: searchRegex },
+        { sportCategory: searchRegex },
+        { description: searchRegex },
       ];
     }
-    const equipment = await Equipment.find(query).sort({ category: 1, name: 1 });
+    const rawEquipment = await Equipment.find(query).sort({ category: 1, sportCategory: 1, name: 1 });
+    const equipment = rawEquipment.map((item) => {
+      const obj = item.toObject ? item.toObject() : { ...item };
+      obj.category = obj.category || obj.sportCategory || "General";
+      obj.sportCategory = obj.sportCategory || obj.category || "General";
+      obj.rentalPrice = obj.rentalPrice ?? obj.rentalFee ?? 0;
+      obj.rentalFee = obj.rentalFee ?? obj.rentalPrice ?? 0;
+      return obj;
+    });
     return NextResponse.json({ equipment });
   } catch (err) {
-    let filtered = [...MOCK_EQUIPMENT];
+    let filtered = MOCK_EQUIPMENT.map((item) => ({
+      ...item,
+      category: item.category || item.sportCategory || "General",
+      sportCategory: item.sportCategory || item.category || "General",
+      rentalPrice: item.rentalPrice ?? item.rentalFee ?? 0,
+      rentalFee: item.rentalFee ?? item.rentalPrice ?? 0,
+    }));
     if (category && category !== "All") {
-      filtered = filtered.filter((e) => e.category === category);
+      filtered = filtered.filter((e) => e.category === category || e.sportCategory === category);
     }
     if (search) {
       const q = search.toLowerCase();
       filtered = filtered.filter(
         (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.category.toLowerCase().includes(q) ||
+          (e.name && e.name.toLowerCase().includes(q)) ||
+          (e.category && e.category.toLowerCase().includes(q)) ||
+          (e.sportCategory && e.sportCategory.toLowerCase().includes(q)) ||
           (e.description && e.description.toLowerCase().includes(q))
       );
     }
@@ -46,15 +72,21 @@ export async function POST(request) {
     return NextResponse.json({ error: "Sports store or Admin access required." }, { status: 403 });
   }
   const body = await request.json().catch(() => ({}));
-  if (!body.name || !body.category || body.totalQuantity == null) {
+  const itemCategory = body.category || body.sportCategory;
+  if (!body.name || !itemCategory || body.totalQuantity == null) {
     return NextResponse.json({ error: "Name, category and total quantity are required." }, { status: 400 });
   }
+
+  const rentalRate = Number(body.rentalPrice ?? body.rentalFee) || 5;
 
   try {
     await connectDB();
     const item = await Equipment.create({
       ...body,
-      rentalPrice: Number(body.rentalPrice) || 5,
+      category: itemCategory,
+      sportCategory: itemCategory,
+      rentalPrice: rentalRate,
+      rentalFee: rentalRate,
       availableQuantity: body.availableQuantity ?? body.totalQuantity,
     });
     return NextResponse.json({ message: "Equipment added.", item }, { status: 201 });
@@ -62,7 +94,10 @@ export async function POST(request) {
     const fallbackItem = {
       _id: "eq_" + Date.now(),
       ...body,
-      rentalPrice: Number(body.rentalPrice) || 5,
+      category: itemCategory,
+      sportCategory: itemCategory,
+      rentalPrice: rentalRate,
+      rentalFee: rentalRate,
       availableQuantity: body.availableQuantity ?? body.totalQuantity,
     };
     MOCK_EQUIPMENT.unshift(fallbackItem);

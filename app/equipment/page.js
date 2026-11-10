@@ -135,11 +135,12 @@ export default function EquipmentPage() {
   const activeCheckouts = checkouts.filter((c) => c.status === "Checked Out");
 
   const filtered = equipment.filter((item) => {
-    const matchesCat = category === "All" || item.category === category;
+    const itemCat = item.category || item.sportCategory || "";
+    const matchesCat = category === "All" || itemCat.toLowerCase() === category.toLowerCase();
     const matchesSearch =
       !search.trim() ||
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.category.toLowerCase().includes(search.toLowerCase()) ||
+      (item.name && item.name.toLowerCase().includes(search.toLowerCase())) ||
+      itemCat.toLowerCase().includes(search.toLowerCase()) ||
       (item.description && item.description.toLowerCase().includes(search.toLowerCase()));
     return matchesCat && matchesSearch;
   });

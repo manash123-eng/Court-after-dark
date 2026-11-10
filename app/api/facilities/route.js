@@ -26,6 +26,13 @@ export async function GET(request) {
 
   try {
     await connectDB();
+
+    const totalInDb = await Facility.countDocuments({});
+    if (totalInDb === 0) {
+      console.warn("[Facilities API] Facility collection has 0 documents in database. Serving mock catalogue fallback.");
+      throw new Error("Empty facilities collection");
+    }
+
     const query = {};
 
     if (search) {
