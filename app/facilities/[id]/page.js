@@ -211,7 +211,7 @@ export default function FacilityDetailPage({ params }) {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         showToast(data.error || "Could not complete booking.", "error");
         loadAvailability();
@@ -219,9 +219,15 @@ export default function FacilityDetailPage({ params }) {
       }
 
       showToast("Facility reserved successfully! Your digital gate pass is ready.");
-      router.push(`/bookings/${data.booking._id}`);
+      const bookingId = data.booking?._id || data.booking?.id;
+      if (bookingId) {
+        router.push(`/bookings/${bookingId}`);
+      } else {
+        router.push("/bookings");
+      }
     } catch (err) {
-      showToast("Something went wrong during reservation. Please retry.", "error");
+      console.error("Booking error:", err);
+      showToast(err.message || "Something went wrong during reservation. Please retry.", "error");
     } finally {
       setBookingLoading(false);
     }

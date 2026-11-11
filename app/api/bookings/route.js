@@ -129,13 +129,30 @@ export async function POST(request) {
     await connectDB();
 
     // Facility existence
-    let facility = await Facility.findById(facilityId);
+    let facility = null;
+    if (mongoose.Types.ObjectId.isValid(facilityId)) {
+      facility = await Facility.findById(facilityId);
+    }
+    if (!facility) {
+      facility = await Facility.findOne({ _id: facilityId }).catch(() => null);
+    }
     if (!facility) {
       facility = MOCK_FACILITIES.find((f) => f._id === facilityId);
+      if (facility) {
+        // Find matching facility by name in MongoDB
+        const dbFac = await Facility.findOne({ name: facility.name }).catch(() => null);
+        if (dbFac) {
+          facility = dbFac;
+        }
+      }
     }
     if (!facility) {
       return NextResponse.json({ error: "Facility not found." }, { status: 404 });
     }
+
+    const resolvedFacilityId = mongoose.Types.ObjectId.isValid(facility._id)
+      ? facility._id
+      : new mongoose.Types.ObjectId();
 
     // Check student user details
     const studentUser = await User.findById(session.id);
@@ -210,7 +227,7 @@ export async function POST(request) {
       bookingReference,
       qrCodeToken,
       userId: session.id,
-      facilityId,
+      facilityId: resolvedFacilityId,
       date,
       startTime,
       endTime,
@@ -270,6 +287,12 @@ export async function POST(request) {
   } catch (err) {
     console.warn("Booking DB error, saving to in-memory session:", err.message);
     const mockFacility = MOCK_FACILITIES.find((f) => f._id === facilityId) || MOCK_FACILITIES[0];
+    const durationHours = Math.max(0.5, (timeToMinutes(endTime) - timeToMinutes(startTime)) / 60) || 1;
+    const courtPrice = mockFacility?.pricePerHour || 0;
+    const eqTotal = (equipmentAddons || []).reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+    const totalPrice = (courtPrice * durationHours) + eqTotal;
+    const requiresApproval = Boolean(mockFacility?.approvalRequired);
+
     const fallbackBooking = {
       _id: "cad_demo_" + Date.now(),
       userId: session.id,
@@ -282,7 +305,7 @@ export async function POST(request) {
       qrCodeToken,
       courtNumber: 1,
       courtPrice,
-      equipmentRentals,
+      equipmentRentals: equipmentAddons || [],
       equipmentTotal: eqTotal,
       totalPrice,
       paymentMethod,

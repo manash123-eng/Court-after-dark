@@ -33,8 +33,7 @@ const BookingSchema = new mongoose.Schema({
   // --- LPU Student Category & Affiliation ---
   studentCategory: {
     type: String,
-    enum: ["Hosteller", "Day Scholar", "Sports Club Member", "Coach", "Other"],
-    default: "Hosteller",
+    default: "Hosteller with EDB",
   },
   regNo: { type: String, default: "" },
 
@@ -53,7 +52,7 @@ const BookingSchema = new mongoose.Schema({
   // --- Equipment Addons ---
   equipmentAddons: [
     {
-      equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Equipment" },
+      equipmentId: { type: mongoose.Schema.Types.Mixed },
       name: { type: String },
       quantity: { type: Number, default: 1 },
       price: { type: Number, default: 0 },
@@ -65,12 +64,21 @@ const BookingSchema = new mongoose.Schema({
   // --- Payment Information ---
   paymentMethod: {
     type: String,
-    enum: ["UPI", "Card", "Razorpay", "Pay at Venue", "Membership Covered", "Complimentary"],
     default: "UPI",
   },
   paymentStatus: {
     type: String,
-    enum: ["Paid", "Pay at Venue", "Payment Pending", "Refunded", "Waived"],
+    enum: [
+      "Paid",
+      "Pay at Venue",
+      "Payment Pending",
+      "Payment Verification Pending",
+      "Complimentary",
+      "Complimentary / Membership",
+      "Membership Covered",
+      "Refunded",
+      "Waived",
+    ],
     default: "Payment Pending",
   },
   paymentDetails: {
